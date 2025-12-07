@@ -269,21 +269,73 @@ docker-compose down
 
 ## Deployment
 
+### Production Deployment Steps
+
+1. **Generate a secret key:**
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+2. **Create `.env.production`** (copy from `.env.example` and update values):
+```bash
+SECRET_KEY=<your-generated-key>
+DEBUG=False
+ALLOWED_HOSTS=your-domain.com,localhost,127.0.0.1
+CORS_ALLOWED_ORIGINS=https://your-domain.com
+```
+
+3. **Set up SSL certificates** in `nginx/ssl/` (see `nginx/README.md` for detailed instructions):
+```bash
+# Option A: Let's Encrypt (recommended)
+sudo certbot certonly --standalone -d your-domain.com
+sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/
+sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem nginx/ssl/
+
+# Option B: Self-signed (for internal/testing)
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx/ssl/privkey.pem \
+  -out nginx/ssl/fullchain.pem \
+  -subj "/CN=your-domain.com"
+```
+
+4. **Build and deploy:**
+```bash
+docker-compose -f docker-compose.prod.yml --env-file .env.production up --build -d
+```
+
+5. **Create admin user:**
+```bash
+docker-compose -f docker-compose.prod.yml exec backend python manage.py createsuperuser
+```
+
+6. **Set up daily backups** (add to crontab):
+```bash
+chmod +x scripts/backup.sh
+# Add to crontab: 0 2 * * * /path/to/bstt-web/scripts/backup.sh
+```
+
 ### Production Checklist
 
-1. Set `DEBUG=False`
-2. Generate a strong `SECRET_KEY`
-3. Configure `ALLOWED_HOSTS`
-4. Set up HTTPS/SSL (configure nginx)
-5. Configure database (PostgreSQL recommended)
-6. Set up monitoring and logging
-7. Configure backup strategy
-8. Run `collectstatic`
+- [ ] Generate unique SECRET_KEY (64+ characters)
+- [ ] Set DEBUG=False
+- [ ] Configure ALLOWED_HOSTS for your domain
+- [ ] Set up SSL certificates in nginx/ssl/
+- [ ] Configure CORS_ALLOWED_ORIGINS
+- [ ] Create admin superuser
+- [ ] Set up daily backup cron job
+- [ ] Test health endpoints (https://your-domain.com/api/health/)
 
-### Docker Production Build
+### Backup and Restore
 
 ```bash
-docker-compose up --build -d
+# Create backup
+./scripts/backup.sh
+
+# Restore from latest backup
+./scripts/backup.sh --restore
+
+# List available backups
+./scripts/backup.sh --list
 ```
 
 ## Troubleshooting
