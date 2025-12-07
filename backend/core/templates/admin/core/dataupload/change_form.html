@@ -1,0 +1,313 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    /* Upload Progress Overlay */
+    #upload-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #upload-overlay.active {
+        display: flex;
+    }
+
+    .upload-modal {
+        background: white;
+        padding: 40px 60px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 90%;
+    }
+
+    .upload-modal h2 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 24px;
+    }
+
+    .upload-modal p {
+        color: #666;
+        margin: 0 0 30px 0;
+        font-size: 14px;
+    }
+
+    /* Progress Bar */
+    .progress-container {
+        width: 100%;
+        height: 24px;
+        background: #e0e0e0;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 15px;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #4CAF50, #8BC34A);
+        width: 0%;
+        transition: width 0.3s ease;
+        border-radius: 12px;
+    }
+
+    .progress-bar.processing {
+        background: linear-gradient(90deg, #2196F3, #03A9F4);
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .progress-text {
+        font-size: 16px;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    /* Spinner */
+    .spinner {
+        width: 60px;
+        height: 60px;
+        border: 5px solid #e0e0e0;
+        border-top: 5px solid #2196F3;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Stage indicators */
+    .stage-indicator {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-top: 25px;
+    }
+
+    .stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: #999;
+    }
+
+    .stage.active {
+        color: #4CAF50;
+    }
+
+    .stage.completed {
+        color: #4CAF50;
+    }
+
+    .stage-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        font-size: 18px;
+        transition: all 0.3s ease;
+    }
+
+    .stage.active .stage-icon {
+        background: #2196F3;
+        color: white;
+        animation: pulse 1.5s infinite;
+    }
+
+    .stage.completed .stage-icon {
+        background: #4CAF50;
+        color: white;
+    }
+
+    .stage-label {
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    /* File info */
+    .file-info {
+        background: #f5f5f5;
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        color: #555;
+    }
+
+    .file-info strong {
+        color: #333;
+    }
+</style>
+{% endblock %}
+
+{% block admin_change_form_document_ready %}
+{{ block.super }}
+<script>
+(function() {
+    // Create overlay HTML
+    const overlayHTML = `
+        <div id="upload-overlay">
+            <div class="upload-modal">
+                <div class="spinner" id="upload-spinner"></div>
+                <h2 id="upload-title">Uploading File...</h2>
+                <p id="upload-subtitle">Please wait while your file is being uploaded</p>
+                <div class="file-info" id="file-info" style="display: none;">
+                    <strong>File:</strong> <span id="file-name"></span> (<span id="file-size"></span>)
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-text" id="progress-text">0%</div>
+                <div class="stage-indicator">
+                    <div class="stage" id="stage-upload">
+                        <div class="stage-icon">1</div>
+                        <div class="stage-label">Upload</div>
+                    </div>
+                    <div class="stage" id="stage-process">
+                        <div class="stage-icon">2</div>
+                        <div class="stage-label">Process</div>
+                    </div>
+                    <div class="stage" id="stage-complete">
+                        <div class="stage-icon">3</div>
+                        <div class="stage-label">Complete</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Insert overlay into body
+    document.body.insertAdjacentHTML('beforeend', overlayHTML);
+
+    // Get references
+    const overlay = document.getElementById('upload-overlay');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const uploadTitle = document.getElementById('upload-title');
+    const uploadSubtitle = document.getElementById('upload-subtitle');
+    const fileInfo = document.getElementById('file-info');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    const stageUpload = document.getElementById('stage-upload');
+    const stageProcess = document.getElementById('stage-process');
+    const stageComplete = document.getElementById('stage-complete');
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function showUploadProgress() {
+        overlay.classList.add('active');
+        stageUpload.classList.add('active');
+    }
+
+    function updateProgress(percent) {
+        progressBar.style.width = percent + '%';
+        progressText.textContent = Math.round(percent) + '%';
+    }
+
+    function showProcessingStage() {
+        stageUpload.classList.remove('active');
+        stageUpload.classList.add('completed');
+        stageUpload.querySelector('.stage-icon').textContent = '✓';
+        stageProcess.classList.add('active');
+
+        progressBar.classList.add('processing');
+        progressBar.style.width = '100%';
+        uploadTitle.textContent = 'Processing Data...';
+        uploadSubtitle.textContent = 'Importing records into database. This may take a few minutes for large files.';
+        progressText.textContent = 'Processing...';
+    }
+
+    // Intercept form submission
+    const form = document.getElementById('dataupload_form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const fileInput = form.querySelector('input[type="file"]');
+
+            if (fileInput && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+
+                // Show file info
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                fileInfo.style.display = 'block';
+
+                // Show overlay
+                showUploadProgress();
+
+                // Use XMLHttpRequest for progress tracking
+                e.preventDefault();
+
+                const formData = new FormData(form);
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        updateProgress(percent);
+
+                        if (percent >= 100) {
+                            showProcessingStage();
+                        }
+                    }
+                });
+
+                xhr.addEventListener('load', function() {
+                    // Processing complete - redirect to response
+                    stageProcess.classList.remove('active');
+                    stageProcess.classList.add('completed');
+                    stageProcess.querySelector('.stage-icon').textContent = '✓';
+                    stageComplete.classList.add('completed');
+                    stageComplete.querySelector('.stage-icon').textContent = '✓';
+
+                    uploadTitle.textContent = 'Complete!';
+                    uploadSubtitle.textContent = 'Redirecting...';
+                    progressText.textContent = 'Done!';
+
+                    setTimeout(function() {
+                        // Navigate to the response
+                        document.open();
+                        document.write(xhr.responseText);
+                        document.close();
+                    }, 500);
+                });
+
+                xhr.addEventListener('error', function() {
+                    overlay.classList.remove('active');
+                    alert('Upload failed. Please try again.');
+                });
+
+                xhr.open('POST', form.action);
+                xhr.send(formData);
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

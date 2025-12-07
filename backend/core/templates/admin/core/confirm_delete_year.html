@@ -1,0 +1,130 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<style>
+    .confirm-delete {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .warning-card {
+        background: #fff;
+        border: 2px solid #ffc107;
+        border-radius: 8px;
+        padding: 30px;
+        text-align: center;
+    }
+
+    .warning-icon {
+        font-size: 60px;
+        color: #ffc107;
+        margin-bottom: 20px;
+    }
+
+    .warning-card h2 {
+        color: #856404;
+        margin-bottom: 20px;
+    }
+
+    .year-display {
+        font-size: 72px;
+        font-weight: bold;
+        color: #856404;
+        margin: 20px 0;
+    }
+
+    .count-text {
+        font-size: 18px;
+        color: #666;
+    }
+
+    .count-text strong {
+        font-size: 24px;
+        color: #856404;
+    }
+
+    .confirm-input {
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+        border: 2px solid #ffc107;
+        border-radius: 4px;
+        text-align: center;
+        margin: 20px 0;
+    }
+
+    .confirm-input:focus {
+        border-color: #e0a800;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.25);
+    }
+
+    .help-text {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 20px;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 12px 24px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        font-size: 14px;
+        margin: 5px;
+    }
+
+    .btn-warning {
+        background: #ffc107;
+        color: #212529;
+    }
+
+    .btn-warning:hover {
+        background: #e0a800;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .button-group {
+        margin-top: 20px;
+    }
+</style>
+
+<div class="confirm-delete">
+    <div class="warning-card">
+        <div class="warning-icon">&#9888;</div>
+        <h2>Delete Data for Year {{ year }}?</h2>
+
+        <div class="year-display">{{ year }}</div>
+
+        <p class="count-text">
+            This will delete <strong>{{ count|default:0 }}</strong> time entry records
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+            <p class="help-text">
+                To confirm, type <strong>{{ confirmation_text }}</strong> below:
+            </p>
+            <input type="text" name="confirm" class="confirm-input"
+                   placeholder="Type confirmation text here"
+                   autocomplete="off">
+
+            <div class="button-group">
+                <a href="{% url 'admin:database_management' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-warning">Delete Year {{ year }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

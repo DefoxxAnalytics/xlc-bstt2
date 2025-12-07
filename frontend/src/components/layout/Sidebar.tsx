@@ -14,6 +14,8 @@ import {
   Settings,
   ExternalLink,
   Sparkles,
+  Trash2,
+  Upload,
 } from 'lucide-react';
 import { COLORS } from '../../constants/colors';
 import xlcLogo from '../../assets/xlc_logo.png';
@@ -217,6 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
               Admin Only
             </p>
           )}
+          {/* Admin Panel Link */}
           <a
             href="http://localhost:8000/admin/"
             target="_blank"
@@ -245,6 +248,76 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
               <>
                 <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1">
                   Admin Panel
+                </span>
+                <ExternalLink size={14} style={{ color: COLORS.text.muted }} />
+              </>
+            )}
+          </a>
+
+          {/* Upload Data Link */}
+          <a
+            href="http://localhost:8000/admin/core/dataupload/add/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group overflow-hidden"
+            style={{
+              color: COLORS.text.secondary,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `linear-gradient(90deg, ${COLORS.status.success}20 0%, ${COLORS.status.success}05 50%, transparent 100%)`;
+              const icon = e.currentTarget.querySelector('.upload-icon') as HTMLElement;
+              if (icon) icon.style.background = `${COLORS.status.success}25`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              const icon = e.currentTarget.querySelector('.upload-icon') as HTMLElement;
+              if (icon) icon.style.background = 'transparent';
+            }}
+          >
+            <span
+              className="upload-icon flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200"
+            >
+              <Upload size={20} />
+            </span>
+            {showExpanded && (
+              <>
+                <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1">
+                  Upload Data
+                </span>
+                <ExternalLink size={14} style={{ color: COLORS.text.muted }} />
+              </>
+            )}
+          </a>
+
+          {/* Database Management Link */}
+          <a
+            href="http://localhost:8000/admin/database-management/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group overflow-hidden"
+            style={{
+              color: COLORS.text.secondary,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `linear-gradient(90deg, ${COLORS.status.error}20 0%, ${COLORS.status.error}05 50%, transparent 100%)`;
+              const icon = e.currentTarget.querySelector('.db-icon') as HTMLElement;
+              if (icon) icon.style.background = `${COLORS.status.error}25`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              const icon = e.currentTarget.querySelector('.db-icon') as HTMLElement;
+              if (icon) icon.style.background = 'transparent';
+            }}
+          >
+            <span
+              className="db-icon flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200"
+            >
+              <Trash2 size={20} />
+            </span>
+            {showExpanded && (
+              <>
+                <span className="text-sm font-medium whitespace-nowrap overflow-hidden flex-1">
+                  Database Mgmt
                 </span>
                 <ExternalLink size={14} style={{ color: COLORS.text.muted }} />
               </>

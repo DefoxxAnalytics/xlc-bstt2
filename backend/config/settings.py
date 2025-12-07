@@ -4,18 +4,19 @@ Django settings for BSTT Compliance Dashboard.
 This is a self-contained Django + React application.
 Data is loaded from the original BSTT project's output directory.
 """
+import os
 from pathlib import Path
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Original BSTT project (for data access)
-BSTT_PROJECT_DIR = Path('c:/Users/MLawali/Documents/Projects/XLC-Projects/BSTT')
+# Original BSTT project (for data access) - only used in development
+BSTT_PROJECT_DIR = Path(os.environ.get('BSTT_PROJECT_DIR', 'c:/Users/MLawali/Documents/Projects/XLC-Projects/BSTT'))
 
 # Security
-SECRET_KEY = 'django-insecure-change-this-in-production'
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-production')
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -38,6 +39,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -65,11 +67,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database
+# Database - Use /app/data for Docker volume persistence
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': Path(os.environ.get('DATABASE_PATH', BASE_DIR / 'data' / 'db.sqlite3')),
     }
 }
 
@@ -88,7 +90,9 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (user uploads)
 MEDIA_URL = '/media/'
@@ -119,10 +123,10 @@ REST_FRAMEWORK = {
 # =============================================================================
 # CORS Configuration (for React frontend on port 3000)
 # =============================================================================
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:80'
+).split(',')
 CORS_ALLOW_CREDENTIALS = True
 
 # =============================================================================
@@ -147,4 +151,40 @@ ENTRY_TYPE_COLORS = {
     'Provisional Entry': '#ffc107',
     'Write-In': '#17a2b8',
     'Missing c/o': '#dc3545',
+}
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
 }

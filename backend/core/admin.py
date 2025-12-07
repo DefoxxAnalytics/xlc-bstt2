@@ -1,5 +1,13 @@
 from django.contrib import admin, messages
+from django.contrib.auth.models import User, Group
+from django.contrib.auth.admin import UserAdmin, GroupAdmin
 from django.utils.html import format_html
+from django.urls import path
+from django.shortcuts import render, redirect
+from django.http import HttpResponseRedirect
+from django.contrib.admin.views.decorators import staff_member_required
+from django.utils.decorators import method_decorator
+from django.views import View
 from .models import TimeEntry, ETLHistory, DataUpload
 from .services import process_uploaded_file
 
@@ -51,6 +59,10 @@ class DataUploadAdmin(admin.ModelAdmin):
     readonly_fields = ['status', 'records_processed', 'error_message', 'processing_time',
                       'uploaded_at', 'uploaded_by']
     actions = ['process_uploads']
+
+    # Use custom template with upload progress indicator
+    change_form_template = 'admin/core/dataupload/change_form.html'
+    add_form_template = 'admin/core/dataupload/change_form.html'
 
     fieldsets = (
         ('Upload File', {
@@ -143,3 +155,143 @@ class DataUploadAdmin(admin.ModelAdmin):
             messages.success(request, f'Successfully processed {processed} upload(s)')
         if failed:
             messages.error(request, f'Failed to process {failed} upload(s)')
+
+
+# =============================================================================
+# Custom Admin Site with Database Management
+# =============================================================================
+
+class BSTTAdminSite(admin.AdminSite):
+    """Custom admin site with database management features."""
+    site_header = 'BSTT Compliance Dashboard Admin'
+    site_title = 'BSTT Admin'
+    index_title = 'Dashboard Administration'
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('database-management/', self.admin_view(self.database_management_view),
+                 name='database_management'),
+            path('clear-time-entries/', self.admin_view(self.clear_time_entries_view),
+                 name='clear_time_entries'),
+            path('clear-all-data/', self.admin_view(self.clear_all_data_view),
+                 name='clear_all_data'),
+            path('clear-year-data/<int:year>/', self.admin_view(self.clear_year_data_view),
+                 name='clear_year_data'),
+        ]
+        return custom_urls + urls
+
+    def database_management_view(self, request):
+        """Database management dashboard."""
+        # Get statistics
+        stats = {
+            'time_entries': TimeEntry.objects.count(),
+            'etl_history': ETLHistory.objects.count(),
+            'data_uploads': DataUpload.objects.count(),
+        }
+
+        # Get years with data
+        years = TimeEntry.objects.values_list('year', flat=True).distinct().order_by('-year')
+        year_stats = []
+        for year in years:
+            count = TimeEntry.objects.filter(year=year).count()
+            year_stats.append({'year': year, 'count': count})
+
+        context = {
+            **self.each_context(request),
+            'title': 'Database Management',
+            'stats': stats,
+            'year_stats': year_stats,
+        }
+        return render(request, 'admin/core/database_management.html', context)
+
+    def clear_time_entries_view(self, request):
+        """Clear all time entries."""
+        if request.method == 'POST':
+            confirm = request.POST.get('confirm', '')
+            if confirm == 'DELETE ALL TIME ENTRIES':
+                count = TimeEntry.objects.count()
+                TimeEntry.objects.all().delete()
+                messages.success(request, f'Successfully deleted {count:,} time entries.')
+                return redirect('admin:database_management')
+            else:
+                messages.error(request, 'Confirmation text did not match. No data was deleted.')
+                return redirect('admin:database_management')
+
+        context = {
+            **self.each_context(request),
+            'title': 'Clear All Time Entries',
+            'count': TimeEntry.objects.count(),
+            'confirmation_text': 'DELETE ALL TIME ENTRIES',
+        }
+        return render(request, 'admin/core/confirm_delete.html', context)
+
+    def clear_all_data_view(self, request):
+        """Clear all application data."""
+        if request.method == 'POST':
+            confirm = request.POST.get('confirm', '')
+            if confirm == 'DELETE EVERYTHING':
+                time_entries = TimeEntry.objects.count()
+                etl_history = ETLHistory.objects.count()
+                data_uploads = DataUpload.objects.count()
+
+                TimeEntry.objects.all().delete()
+                ETLHistory.objects.all().delete()
+                DataUpload.objects.all().delete()
+
+                total = time_entries + etl_history + data_uploads
+                messages.success(request,
+                    f'Successfully deleted all data: {time_entries:,} time entries, '
+                    f'{etl_history} ETL records, {data_uploads} upload records.')
+                return redirect('admin:database_management')
+            else:
+                messages.error(request, 'Confirmation text did not match. No data was deleted.')
+                return redirect('admin:database_management')
+
+        context = {
+            **self.each_context(request),
+            'title': 'Clear All Data',
+            'stats': {
+                'time_entries': TimeEntry.objects.count(),
+                'etl_history': ETLHistory.objects.count(),
+                'data_uploads': DataUpload.objects.count(),
+            },
+            'confirmation_text': 'DELETE EVERYTHING',
+        }
+        return render(request, 'admin/core/confirm_delete_all.html', context)
+
+    def clear_year_data_view(self, request, year):
+        """Clear time entries for a specific year."""
+        if request.method == 'POST':
+            confirm = request.POST.get('confirm', '')
+            expected = f'DELETE {year}'
+            if confirm == expected:
+                count = TimeEntry.objects.filter(year=year).count()
+                TimeEntry.objects.filter(year=year).delete()
+                messages.success(request, f'Successfully deleted {count:,} time entries for year {year}.')
+                return redirect('admin:database_management')
+            else:
+                messages.error(request, 'Confirmation text did not match. No data was deleted.')
+                return redirect('admin:database_management')
+
+        context = {
+            **self.each_context(request),
+            'title': f'Clear Data for Year {year}',
+            'year': year,
+            'count': TimeEntry.objects.filter(year=year).count(),
+            'confirmation_text': f'DELETE {year}',
+        }
+        return render(request, 'admin/core/confirm_delete_year.html', context)
+
+
+# Replace the default admin site
+bstt_admin_site = BSTTAdminSite(name='bstt_admin')
+
+# Re-register models with the custom admin site
+bstt_admin_site.register(TimeEntry, TimeEntryAdmin)
+bstt_admin_site.register(ETLHistory, ETLHistoryAdmin)
+bstt_admin_site.register(DataUpload, DataUploadAdmin)
+
+# Register User and Group models for authentication management
+bstt_admin_site.register(User, UserAdmin)
+bstt_admin_site.register(Group, GroupAdmin)
